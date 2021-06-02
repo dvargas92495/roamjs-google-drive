@@ -3,7 +3,7 @@ terraform {
     hostname = "app.terraform.io"
     organization = "VargasArts"
     workspaces {
-      prefix = "google-drive"
+      prefix = "roamjs-google-drive"
     }
   }
   required_providers {
