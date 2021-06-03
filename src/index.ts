@@ -1,55 +1,15 @@
-import { addRoamJSDependency, createBlock, createHTMLObserver, getPageUidByPageTitle, getUids, updateBlock } from "roam-client";
+import {
+  addRoamJSDependency,
+  createBlock,
+  createHTMLObserver,
+  getDropUidOffset,
+  getUids,
+  updateBlock,
+} from "roam-client";
 import { getOauth } from "roamjs-components";
 
 // const CONFIG = toConfig("google-drive");
-addRoamJSDependency('google');
-
-// TODO move to roam-client
-const getPageTitle = (e: Element): ChildNode => {
-  const container =
-    e.closest(".roam-log-page") ||
-    e.closest(".rm-sidebar-outline") ||
-    e.closest(".roam-article") ||
-    document;
-  const heading =
-    (container.getElementsByClassName(
-      "rm-title-display"
-    )[0] as HTMLHeadingElement) ||
-    (container.getElementsByClassName(
-      "rm-zoom-item-content"
-    )[0] as HTMLSpanElement);
-  return Array.from(heading.childNodes).find(
-    (n) => n.nodeName === "#text" || n.nodeName === "SPAN"
-  );
-};
-
-// TODO move to roam-client
-const getDropUidOffset = (
-  d: HTMLDivElement
-): { parentUid: string; offset: number } => {
-  const separator = d.parentElement;
-  const childrenContainer = separator.parentElement;
-  const index = Array.from(childrenContainer.children).findIndex(
-    (c) => c === separator
-  );
-  const offset = Array.from(childrenContainer.children).reduce(
-    (prev, cur, ind) =>
-      cur.classList.contains("roam-block-container") && ind < index
-        ? prev + 1
-        : prev,
-    0
-  );
-  const parentBlock = childrenContainer.previousElementSibling.getElementsByClassName(
-    "roam-block"
-  )?.[0] as HTMLDivElement;
-  const parentUid = parentBlock
-    ? getUids(parentBlock).blockUid
-    : getPageUidByPageTitle(getPageTitle(childrenContainer).textContent);
-  return {
-    parentUid,
-    offset,
-  };
-};
+addRoamJSDependency("google");
 
 const uploadToDrive = ({
   files,
@@ -62,17 +22,17 @@ const uploadToDrive = ({
 }) => {
   const fileToUpload = files[0];
   if (fileToUpload) {
-    const oauth = getOauth('google');
+    const oauth = getOauth("google");
     if (oauth !== "{}") {
       const { access_token } = JSON.parse(oauth);
-      console.log('initialize client with', access_token);
+      console.log("initialize client with", access_token);
       const uid = getLoadingUid();
       const reader = new FileReader();
 
       reader.readAsBinaryString(fileToUpload);
 
       reader.onloadend = () =>
-        Promise.resolve('upload file to drive')
+        Promise.resolve("upload file to drive")
           .then((url) => {
             // const contentType = mime.lookup(r.result.name);
             const contentType: string = null;
