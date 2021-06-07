@@ -2,16 +2,15 @@ import axios from "axios";
 import {
   addRoamJSDependency,
   createBlock,
+  createButtonObserver,
   createHTMLObserver,
   getDropUidOffset,
   getUids,
-  localStorageGet,
-  localStorageSet,
   updateBlock,
 } from "roam-client";
-import { getOauth } from "roamjs-components";
 import mime from "mime-types";
-import differenceInSeconds from "date-fns/differenceInSeconds";
+import { render } from "./GoogleDriveButton";
+import { getAccessToken } from "./util";
 
 // const CONFIG = toConfig("google-drive");
 addRoamJSDependency("google");
@@ -29,144 +28,96 @@ const uploadToDrive = ({
 }) => {
   const fileToUpload = files[0];
   if (fileToUpload) {
-    const oauth = getOauth("google");
-    if (oauth !== "{}") {
-      const { access_token, expires_in, refresh_token, node } =
-        JSON.parse(oauth);
-      const { time, uid: oauthUid } = node || {};
-      const tokenAge = differenceInSeconds(
-        new Date(),
-        time ? new Date(time) : new Date(0)
-      );
-      const getAccessToken =
-        tokenAge > expires_in
+    const uid = getLoadingUid();
+    const contentType =
+      mime.lookup(fileToUpload.name) || "application/octet-stream";
+    const contentLength = fileToUpload.size;
+    getAccessToken()
+      .then((Authorization) =>
+        Authorization
           ? axios
-              .post(`https://lambda.roamjs.com/google-auth`, {
-                refresh_token,
-                grant_type: "refresh_token",
-              })
+              .post(
+                `${process.env.API_URL}/google-drive`,
+                {
+                  operation: "INIT",
+                  data: { contentType, contentLength, name: fileToUpload.name },
+                },
+                { headers: { Authorization } }
+              )
               .then((r) => {
-                const storageData = localStorageGet("oauth-google");
-                const data = JSON.stringify({ refresh_token, ...r.data });
-                if (storageData) {
-                  localStorageSet(
-                    "oauth-google",
-                    JSON.stringify(
-                      JSON.parse(storageData).map(
-                        (at: { uid: string; text: string }) =>
-                          at.uid === oauthUid
-                            ? {
-                                uid: at.uid,
-                                data,
-                                time: new Date().valueOf(),
-                                text: at.text,
-                              }
-                            : at
-                      )
-                    )
-                  );
-                } else {
-                  window.roamAlphaAPI.updateBlock({
-                    block: {
-                      uid: oauthUid,
-                      string: data,
-                    },
+                const { location } = r.data;
+                const upload = (start: number): Promise<{ id: string }> => {
+                  updateBlock({
+                    uid,
+                    text: `Loading ${Math.round(
+                      (100 * start) / contentLength
+                    )}%`,
                   });
-                }
-                return r.data.access_token;
+                  const end = Math.min(start + CHUNK_MAX, contentLength);
+                  const reader = new FileReader();
+                  reader.readAsArrayBuffer(fileToUpload.slice(start, end));
+                  return new Promise((resolve, reject) => {
+                    reader.onloadend = () => {
+                      axios
+                        .post(
+                          `${process.env.API_URL}/google-drive`,
+                          {
+                            operation: "UPLOAD",
+                            data: {
+                              chunk: Array.from(
+                                new Uint8Array(reader.result as ArrayBuffer)
+                              ),
+                              uri: location,
+                              contentLength: end - start,
+                              contentRange: `bytes ${start}-${
+                                end - 1
+                              }/${contentLength}`,
+                            },
+                          },
+                          { headers: { Authorization } }
+                        )
+                        .then((r) =>
+                          r.data.done
+                            ? resolve({
+                                id: r.data.id,
+                              })
+                            : resolve(upload(r.data.start))
+                        )
+                        .catch(reject);
+                    };
+                  });
+                };
+                return upload(0);
               })
-          : Promise.resolve(access_token);
-      const uid = getLoadingUid();
-      const contentType = mime.lookup(fileToUpload.name);
-      const contentLength = fileToUpload.size;
-      getAccessToken
-        .then((Authorization) =>
-          axios
-            .post(
-              `${process.env.API_URL}/google-drive`,
-              {
-                operation: "INIT",
-                data: { contentType, contentLength, name: fileToUpload.name },
-              },
-              { headers: { Authorization } }
-            )
-            .then((r) => {
-              const { location } = r.data;
-              const upload = (
-                start: number
-              ): Promise<{ url: string; mimeType: string }> => {
+              .then(({ id }) => {
                 updateBlock({
                   uid,
-                  text: `Loading ${Math.round((100 * start) / contentLength)}%`,
+                  text: `{{google drive:${id}}}`,
                 });
-                const end = Math.min(start + CHUNK_MAX, contentLength);
-                const reader = new FileReader();
-                reader.readAsArrayBuffer(fileToUpload.slice(start, end));
-                return new Promise((resolve, reject) => {
-                  reader.onloadend = () => {
-                    axios
-                      .post(
-                        `${process.env.API_URL}/google-drive`,
-                        {
-                          operation: "UPLOAD",
-                          data: {
-                            chunk: Array.from(
-                              new Uint8Array(reader.result as ArrayBuffer)
-                            ),
-                            uri: location,
-                            contentLength: end - start,
-                            contentRange: `bytes ${start}-${
-                              end - 1
-                            }/${contentLength}`,
-                          },
-                        },
-                        { headers: { Authorization } }
-                      )
-                      .then((r) =>
-                        r.data.done
-                          ? resolve({
-                              url: `${process.env.API_URL}/google-drive?id=${r.data.id}`,
-                              mimeType: r.data.mimeType,
-                            })
-                          : resolve(upload(r.data.start))
-                      )
-                      .catch(reject);
-                  };
-                });
-              };
-              return upload(0);
-            })
-            .then(({ url, mimeType }) => {
-              updateBlock({
-                uid,
-                text: mimeType.includes("pdf")
-                  ? `{{pdf: ${url}}}`
-                  : `![](${url})`,
-              });
-            })
-        )
-        .catch((e) => {
-          updateBlock({
-            uid,
-            text: "Failed to upload file to google drive. Email support@roamjs.com with the error below:",
-          });
-          createBlock({
-            parentUid: uid,
-            node: {
-              text: e.response?.data
-                ? JSON.stringify(e.response.data)
-                : e.message,
-            },
-          });
-        })
-        .finally(() => {
-          Array.from(document.getElementsByClassName("dnd-drop-bar"))
-            .map((c) => c as HTMLDivElement)
-            .forEach((c) => (c.style.display = "none"));
+              })
+          : Promise.reject("Failed to get Google Access token")
+      )
+      .catch((e) => {
+        updateBlock({
+          uid,
+          text: "Failed to upload file to google drive. Email support@roamjs.com with the error below:",
         });
-      e.stopPropagation();
-      e.preventDefault();
-    }
+        createBlock({
+          parentUid: uid,
+          node: {
+            text: e.response?.data
+              ? JSON.stringify(e.response.data)
+              : e.message,
+          },
+        });
+      })
+      .finally(() => {
+        Array.from(document.getElementsByClassName("dnd-drop-bar"))
+          .map((c) => c as HTMLDivElement)
+          .forEach((c) => (c.style.display = "none"));
+      });
+    e.stopPropagation();
+    e.preventDefault();
   }
 };
 
@@ -241,4 +192,10 @@ document.addEventListener("click", (e) => {
       { capture: true }
     );
   }
+});
+
+createButtonObserver({
+  shortcut: "gdrive",
+  attribute: "google-drive",
+  render,
 });
