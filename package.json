@@ -6,14 +6,18 @@
   "scripts": {
     "build": "roamjs-scripts build",
     "dev": "roamjs-scripts dev",
-    "lambdas": "roamjs-scripts lambdas"
+    "lambdas": "roamjs-scripts lambdas",
+    "preserver": "roamjs-scripts lambdas --build",
+    "server": "localhost-lambdas"
   },
   "license": "MIT",
   "devDependencies": {
     "@types/aws-lambda": "^8.10.76",
+    "@types/mime-types": "^2.1.0",
     "@types/react": "^17.0.8",
     "@types/react-dom": "^17.0.5",
     "aws-lambda": "^1.0.6",
+    "localhost-lambdas": "^0.2.12",
     "roamjs-scripts": "^0.8.21",
     "typescript": "^4.3.2"
   },
@@ -21,9 +25,11 @@
     "@blueprintjs/core": "^3.45.0",
     "@blueprintjs/select": "^3.16.4",
     "axios": "^0.21.1",
+    "date-fns": "^2.22.1",
+    "mime-types": "^2.1.31",
     "react": "^17.0.2",
     "react-dom": "^17.0.2",
-    "roam-client": "^1.70.0",
-    "roamjs-components": "^0.12.4"
+    "roam-client": "^1.70.1",
+    "roamjs-components": "^0.12.11"
   }
 }
