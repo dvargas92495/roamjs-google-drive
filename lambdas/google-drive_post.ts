@@ -18,7 +18,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
         `https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&access_token=${
           event.headers.Authorization || event.headers.authorization
         }`,
-        { name: data.name },
+        { name: data.name, parents: [data.folderId] },
         {
           headers: {
             "X-Upload-Content-Type": data.contentType,
