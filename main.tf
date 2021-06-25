@@ -53,10 +53,6 @@ module "roamjs_lambda" {
     { 
       path = "google-drive", 
       method = "post"
-    },
-    {
-      path = "google-drive",
-      method = "get"
     }
   ]
   aws_access_token = var.aws_access_token
