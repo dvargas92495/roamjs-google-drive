@@ -1,50 +1,112 @@
-import { Button } from "@blueprintjs/core";
+import { Button, Card, Spinner, Tooltip } from "@blueprintjs/core";
 import axios from "axios";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import ReactDOM from "react-dom";
 import { getBlockUidFromTarget, getTextByBlockUid } from "roam-client";
+import { createComponentRender } from "roamjs-components";
 import { getAccessToken } from "./util";
 
 type Props = {
-  id: string;
+  blockUid: string;
 };
 
-const GoogleDriveButton = ({ id }: Props) => {
-  const [buttonText, setButtonText] = useState("Open in Drive");
+const PreviewPdf = ({ id, mimeType }: { id: string; mimeType: string }) => {
+  const [src, setSrc] = useState("");
   useEffect(() => {
-    getAccessToken().then((Authorization) => {
+    getAccessToken().then((token) =>
       axios
-        .get(`${process.env.API_URL}/google-drive?id=${id}&meta=true`, {
-          headers: { Authorization },
+        .get(`https://www.googleapis.com/drive/v3/files/${id}?alt=media`, {
+          headers: { Authorization: `Bearer ${token}` },
+          responseType: "arraybuffer",
         })
-        .then((r) => setButtonText(`Open ${r.data.name} in Drive`))
-        .catch(() => setButtonText("Open Unknown File in Drive"));
-    });
-  }, [setButtonText]);
-  return (
-    <Button
-      onClick={() =>
-        window.open(`https://drive.google.com/file/d/${id}/view`, "_blank")
-      }
-    >
-      <img
-        src={
-          "https://fonts.gstatic.com/s/i/productlogos/drive_2020q4/v8/web-64dp/logo_drive_2020q4_color_2x_web_64dp.png"
-        }
-        style={{ height: 18 }}
-      />
-      <span style={{ marginLeft: 8 }}>{buttonText}</span>
-    </Button>
-  );
+        .then((r) => {
+          var u8 = new Uint8Array(r.data);
+          var b64encoded = btoa(String.fromCharCode.apply(null, u8));
+          setSrc(`data:${mimeType};base64,${b64encoded}`);
+        })
+    );
+  }, [setSrc]);
+  return src ? <iframe src={src} /> : <Spinner />;
+};
+
+const PreviewImage = ({ id, mimeType }: { id: string; mimeType: string }) => {
+  const [src, setSrc] = useState("");
+  useEffect(() => {
+    getAccessToken().then((token) =>
+      axios
+        .get(`https://www.googleapis.com/drive/v3/files/${id}?alt=media`, {
+          headers: { Authorization: `Bearer ${token}` },
+          responseType: "arraybuffer",
+        })
+        .then((r) => {
+          var u8 = new Uint8Array(r.data);
+          var b64encoded = btoa(String.fromCharCode.apply(null, u8));
+          setSrc(`data:${mimeType};base64,${b64encoded}`);
+        })
+    );
+  }, [setSrc]);
+  return src ? <img src={src} alt={"Loading..."} /> : <Spinner />;
 };
 
 const ID_REGEX = /{{google drive:\s*(.*?)\s*}}/;
 
-export const render = (b: HTMLButtonElement) => {
-  const blockUid = getBlockUidFromTarget(b);
-  const text = getTextByBlockUid(blockUid);
-  const id = ID_REGEX.exec(text)?.[1];
-  ReactDOM.render(<GoogleDriveButton id={id} />, b.parentElement);
+const GoogleDriveButton = ({ blockUid }: Props) => {
+  const id = useMemo(
+    () => ID_REGEX.exec(getTextByBlockUid(blockUid))?.[1],
+    [blockUid]
+  );
+  const [name, setName] = useState("Unknown File");
+  const [link, setLink] = useState("https://drive.google.com");
+  const [mimeType, setMimeType] = useState("loading");
+  useEffect(() => {
+    getAccessToken().then((token) => {
+      axios
+        .get(
+          `https://www.googleapis.com/drive/v3/files/${id}?fields=webViewLink,name,mimeType`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        )
+        .then((r) => {
+          setName(r.data.name || "Unknown File");
+          setLink(r.data.webViewLink);
+          setMimeType(r.data.mimeType);
+        })
+        .catch((e) => {
+          setName("Unknown File");
+          setMimeType(`error: ${e.response?.data?.message || e.message}`);
+        });
+    });
+  }, [setName, setMimeType, setLink]);
+  return (
+    <Card style={{ position: "relative", width: "min-content", minWidth: 300 }}>
+      <div>
+        {mimeType.startsWith("loading") ? (
+          <Spinner />
+        ) : mimeType.startsWith("image") ? (
+          <PreviewImage id={id} mimeType={mimeType} />
+        ) : mimeType.includes("pdf") ? (
+          <PreviewPdf id={id} mimeType={mimeType} />
+        ) : (
+          <div>Don't know how to load the following file type: {mimeType}</div>
+        )}
+      </div>
+      <Button
+        onClick={() => window.open(link, "_blank")}
+        style={{ marginTop: 16 }}
+      >
+        <img
+          src={
+            "https://fonts.gstatic.com/s/i/productlogos/drive_2020q4/v8/web-64dp/logo_drive_2020q4_color_2x_web_64dp.png"
+          }
+          style={{ height: 18 }}
+        />
+        <span style={{ marginLeft: 8 }}>Open {name} in Drive</span>
+      </Button>
+    </Card>
+  );
 };
+
+export const render = createComponentRender(GoogleDriveButton);
 
 export default GoogleDriveButton;

@@ -48,7 +48,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
   };
   if (meta === "true") {
     return axios
-      .get(`https://www.googleapis.com/drive/v3/files/${id}`, opts)
+      .get(, opts)
       .then(passThrough)
       .catch(handleError);
   } else {
