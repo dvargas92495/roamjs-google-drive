@@ -19,6 +19,7 @@ import {
   toFlexRegex,
 } from "roamjs-components";
 
+addRoamJSDependency("google");
 const CONFIG = toConfig("google-drive");
 createConfigObserver({
   title: CONFIG,
@@ -39,7 +40,6 @@ createConfigObserver({
     ],
   },
 });
-addRoamJSDependency("google");
 
 const CHUNK_MAX = 256 * 1024;
 
