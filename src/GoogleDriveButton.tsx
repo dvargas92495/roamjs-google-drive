@@ -10,7 +10,7 @@ type Props = {
   blockUid: string;
 };
 
-const PreviewPdf = ({ id, mimeType }: { id: string; mimeType: string }) => {
+const useSrc = ({ id, mimeType }: { id: string; mimeType: string }) => {
   const [src, setSrc] = useState("");
   useEffect(() => {
     getAccessToken().then((token) =>
@@ -20,32 +20,28 @@ const PreviewPdf = ({ id, mimeType }: { id: string; mimeType: string }) => {
           responseType: "arraybuffer",
         })
         .then((r) => {
-          var u8 = new Uint8Array(r.data);
-          var b64encoded = btoa(String.fromCharCode.apply(null, u8));
-          setSrc(`data:${mimeType};base64,${b64encoded}`);
+          const u8 = new Uint8Array(r.data);
+          let b64encoded = "";
+          u8.forEach((u) => (b64encoded += String.fromCharCode(u)));
+          setSrc(`data:${mimeType};base64,${btoa(b64encoded)}`);
         })
     );
-  }, [setSrc]);
-  return src ? <iframe src={src} /> : <Spinner />;
+  }, [setSrc, mimeType, id]);
+  return src;
+};
+
+const PreviewPdf = ({ id, mimeType }: { id: string; mimeType: string }) => {
+  const src = useSrc({ id, mimeType });
+  return src ? <iframe src={src} style={{ width: "100%" }} /> : <Spinner />;
 };
 
 const PreviewImage = ({ id, mimeType }: { id: string; mimeType: string }) => {
-  const [src, setSrc] = useState("");
-  useEffect(() => {
-    getAccessToken().then((token) =>
-      axios
-        .get(`https://www.googleapis.com/drive/v3/files/${id}?alt=media`, {
-          headers: { Authorization: `Bearer ${token}` },
-          responseType: "arraybuffer",
-        })
-        .then((r) => {
-          var u8 = new Uint8Array(r.data);
-          var b64encoded = btoa(String.fromCharCode.apply(null, u8));
-          setSrc(`data:${mimeType};base64,${b64encoded}`);
-        })
-    );
-  }, [setSrc]);
-  return src ? <img src={src} alt={"Loading..."} /> : <Spinner />;
+  const src = useSrc({ id, mimeType });
+  return src ? (
+    <img src={src} alt={"Loading..."} style={{ width: "100%" }} />
+  ) : (
+    <Spinner />
+  );
 };
 
 const ID_REGEX = /{{google drive:\s*(.*?)\s*}}/;
@@ -79,7 +75,7 @@ const GoogleDriveButton = ({ blockUid }: Props) => {
     });
   }, [setName, setMimeType, setLink]);
   return (
-    <Card style={{ position: "relative", width: "min-content", minWidth: 300 }}>
+    <Card style={{ position: "relative", maxWidth: "100%", minWidth: 300 }}>
       <div>
         {mimeType.startsWith("loading") ? (
           <Spinner />
