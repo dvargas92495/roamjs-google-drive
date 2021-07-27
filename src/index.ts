@@ -165,18 +165,25 @@ const uploadToDrive = ({
             )
       )
       .catch((e) => {
-        updateBlock({
-          uid,
-          text: "Failed to upload file to google drive. Email support@roamjs.com with the error below:",
-        });
-        createBlock({
-          parentUid: uid,
-          node: {
-            text: e.response?.data
-              ? JSON.stringify(e.response.data)
-              : e.message,
-          },
-        });
+        if (e.response?.data?.error?.code === 403) {
+          updateBlock({
+            uid,
+            text: "Failed to upload file to google drive because of authentication. Make sure to log in through the [[roam/js/google]] page!",
+          });
+        } else {
+          updateBlock({
+            uid,
+            text: "Failed to upload file to google drive. Email support@roamjs.com with the error below:",
+          });
+          createBlock({
+            parentUid: uid,
+            node: {
+              text: e.response?.data
+                ? JSON.stringify(e.response.data)
+                : e.message,
+            },
+          });
+        }
       })
       .finally(() => {
         Array.from(document.getElementsByClassName("dnd-drop-bar"))
