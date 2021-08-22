@@ -1,10 +1,14 @@
-import { Button, Card, Spinner, Tooltip } from "@blueprintjs/core";
+import { Button, Card, Spinner } from "@blueprintjs/core";
 import axios from "axios";
-import React, { useEffect, useMemo, useState } from "react";
-import ReactDOM from "react-dom";
-import { getBlockUidFromTarget, getTextByBlockUid } from "roam-client";
-import { createComponentRender } from "roamjs-components";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { getTextByBlockUid, getTreeByBlockUid } from "roam-client";
+import {
+  createComponentRender,
+  getSettingIntFromTree,
+  setInputSetting,
+} from "roamjs-components";
 import { getAccessToken } from "./util";
+import { Resizable } from "react-resizable";
 
 type Props = {
   blockUid: string;
@@ -32,13 +36,67 @@ const useSrc = ({ id, mimeType }: { id: string; mimeType: string }) => {
 
 const PreviewPdf = ({ id, mimeType }: { id: string; mimeType: string }) => {
   const src = useSrc({ id, mimeType });
-  return src ? <iframe src={src} style={{ width: "100%" }} /> : <Spinner />;
+  return src ? (
+    <iframe src={src} style={{ width: "100%", height: "100%" }} />
+  ) : (
+    <Spinner />
+  );
 };
 
-const PreviewImage = ({ id, mimeType }: { id: string; mimeType: string }) => {
+const PreviewImage = ({
+  id,
+  mimeType,
+  parentWidth,
+  parentHeight,
+}: {
+  id: string;
+  mimeType: string;
+  parentWidth: number;
+  parentHeight: number;
+}) => {
   const src = useSrc({ id, mimeType });
+  const imageRef = useRef<HTMLImageElement>(null);
+  const [height, setHeight] = useState<string | number>("100%");
+  const [width, setWidth] = useState<string | number>("100%");
+  const [imageStats, setImageStats] = useState({ width: 1, height: 1 });
+  useEffect(() => {
+    if (src) {
+      const dummyImage = new Image();
+      dummyImage.src = src;
+      dummyImage.style.visibility = "hidden";
+      dummyImage.onload = () => {
+        document.body.appendChild(dummyImage);
+        const { clientWidth, clientHeight } = dummyImage;
+        dummyImage.remove();
+        setImageStats({ width: clientWidth, height: clientHeight });
+      };
+    }
+  }, [src, setImageStats]);
+  useEffect(() => {
+    if (
+      imageStats.width / imageStats.height <
+      parentWidth / parentHeight
+    ) {
+      setHeight(parentHeight);
+      setWidth((parentHeight * imageStats.width) / imageStats.height);
+    } else if (
+      imageStats.width / imageStats.height >
+      parentWidth / parentHeight
+    ) {
+      setHeight((parentWidth * imageStats.height) / imageStats.width);
+      setWidth(parentWidth);
+    } else {
+      setHeight(parentHeight);
+      setWidth(parentWidth);
+    }
+  }, [setHeight, setWidth, parentHeight, parentWidth, imageStats]);
   return src ? (
-    <img src={src} alt={"Loading..."} style={{ width: "100%" }} />
+    <img
+      src={src}
+      alt={"Failed to load Image"}
+      style={{ width, height }}
+      ref={imageRef}
+    />
   ) : (
     <Spinner />
   );
@@ -54,6 +112,13 @@ const GoogleDriveButton = ({ blockUid }: Props) => {
   const [name, setName] = useState("Unknown File");
   const [link, setLink] = useState("https://drive.google.com");
   const [mimeType, setMimeType] = useState("loading");
+  const tree = useMemo(() => getTreeByBlockUid(blockUid).children, [blockUid]);
+  const [width, setWidth] = useState(
+    getSettingIntFromTree({ tree, key: "width", defaultValue: 500 })
+  );
+  const [height, setHeight] = useState(
+    getSettingIntFromTree({ tree, key: "height", defaultValue: 400 })
+  );
   useEffect(() => {
     getAccessToken().then((token) => {
       axios
@@ -75,18 +140,38 @@ const GoogleDriveButton = ({ blockUid }: Props) => {
     });
   }, [setName, setMimeType, setLink]);
   return (
-    <Card style={{ position: "relative", maxWidth: "100%", minWidth: 300 }}>
-      <div>
-        {mimeType.startsWith("loading") ? (
-          <Spinner />
-        ) : mimeType.startsWith("image") ? (
-          <PreviewImage id={id} mimeType={mimeType} />
-        ) : mimeType.includes("pdf") ? (
-          <PreviewPdf id={id} mimeType={mimeType} />
-        ) : (
-          <div>Don't know how to load the following file type: {mimeType}</div>
-        )}
-      </div>
+    <>
+      <Resizable
+        width={width}
+        height={height}
+        onResize={(_, { size }) => {
+          setWidth(size.width);
+          setHeight(size.height);
+        }}
+        onResizeStop={(_, { size }) => {
+          setInputSetting({ blockUid, value: `${size.width}`, key: "width" });
+          setInputSetting({ blockUid, value: `${size.height}`, key: "height" });
+        }}
+      >
+        <div style={{ width, height }}>
+          {mimeType.startsWith("loading") ? (
+            <Spinner />
+          ) : mimeType.startsWith("image") ? (
+            <PreviewImage
+              id={id}
+              mimeType={mimeType}
+              parentWidth={width}
+              parentHeight={height}
+            />
+          ) : mimeType.includes("pdf") ? (
+            <PreviewPdf id={id} mimeType={mimeType} />
+          ) : (
+            <div>
+              Don't know how to load the following file type: {mimeType}
+            </div>
+          )}
+        </div>
+      </Resizable>
       <Button
         onClick={() => window.open(link, "_blank")}
         style={{ marginTop: 16 }}
@@ -99,7 +184,7 @@ const GoogleDriveButton = ({ blockUid }: Props) => {
         />
         <span style={{ marginLeft: 8 }}>Open {name} in Drive</span>
       </Button>
-    </Card>
+    </>
   );
 };
 
