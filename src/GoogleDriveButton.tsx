@@ -73,10 +73,7 @@ const PreviewImage = ({
     }
   }, [src, setImageStats]);
   useEffect(() => {
-    if (
-      imageStats.width / imageStats.height <
-      parentWidth / parentHeight
-    ) {
+    if (imageStats.width / imageStats.height < parentWidth / parentHeight) {
       setHeight(parentHeight);
       setWidth((parentHeight * imageStats.width) / imageStats.height);
     } else if (
@@ -175,6 +172,7 @@ const GoogleDriveButton = ({ blockUid }: Props) => {
       <Button
         onClick={() => window.open(link, "_blank")}
         style={{ marginTop: 16 }}
+        className={"roamjs-open-in-drive"}
       >
         <img
           src={
