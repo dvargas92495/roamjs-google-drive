@@ -54,6 +54,15 @@ const PreviewPdf = ({ id, mimeType }: { id: string; mimeType: string }) => {
   );
 };
 
+const PreviewVideo = ({ id, mimeType }: { id: string; mimeType: string }) => {
+  const src = useSrc({ id, mimeType });
+  return src ? (
+    <video src={src} style={{ width: "100%", height: "100%" }} controls />
+  ) : (
+    <Spinner />
+  );
+};
+
 const PreviewImage = ({
   id,
   mimeType,
@@ -175,6 +184,8 @@ const GoogleDriveButton = ({ blockUid }: Props) => {
             <PreviewPdf id={id} mimeType={mimeType} />
           ) : mimeType.includes("audio") ? (
             <PreviewAudio id={id} mimeType={mimeType} />
+          ) : mimeType.includes("video") ? (
+            <PreviewVideo id={id} mimeType={mimeType} />
           ) : (
             <div>
               Don't know how to load the following file type: {mimeType}
