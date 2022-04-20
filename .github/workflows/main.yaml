@@ -24,4 +24,5 @@ jobs:
           token: ${{ secrets.ROAMJS_DEVELOPER_TOKEN }}
           source: build
           path: google-drive
+          email: support@roamjs.com
           release_token: ${{ secrets.ROAMJS_RELEASE_TOKEN }}
