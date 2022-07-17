@@ -66,109 +66,118 @@ const uploadToDrive = ({
       defaultValue: "RoamJS",
     });
     getAccessToken()
-      .then((Authorization) =>
-        Authorization
-          ? axios
-              .get(
-                `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(
-                  "mimeType='application/vnd.google-apps.folder'"
-                )}`,
-                { headers: { Authorization: `Bearer ${Authorization}` } }
-              )
-              .then((r) => {
-                const id = r.data.files.find(
-                  (f: { name: string; id: string }) => f.name === folder
-                )?.id;
-                if (id) {
-                  return id;
-                }
-                return axios
-                  .post(
-                    `https://www.googleapis.com/drive/v3/files`,
-                    {
-                      name: folder,
-                      mimeType: "application/vnd.google-apps.folder",
+      .then((Authorization) => {
+        if (Authorization)
+          return axios
+            .get(
+              `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(
+                "mimeType='application/vnd.google-apps.folder'"
+              )}`,
+              { headers: { Authorization: `Bearer ${Authorization}` } }
+            )
+            .then((r) => {
+              const id = r.data.files.find(
+                (f: { name: string; id: string }) => f.name === folder
+              )?.id;
+              if (id) {
+                return id;
+              }
+              return axios
+                .post(
+                  `https://www.googleapis.com/drive/v3/files`,
+                  {
+                    name: folder,
+                    mimeType: "application/vnd.google-apps.folder",
+                  },
+                  { headers: { Authorization: `Bearer ${Authorization}` } }
+                )
+                .then((r) => r.data.id);
+            })
+            .then((folderId) =>
+              axios
+                .post(
+                  `${process.env.API_URL}/google-drive`,
+                  {
+                    operation: "INIT",
+                    data: {
+                      contentType,
+                      contentLength,
+                      name: fileToUpload.name,
+                      folderId,
                     },
-                    { headers: { Authorization: `Bearer ${Authorization}` } }
-                  )
-                  .then((r) => r.data.id);
-              })
-              .then((folderId) =>
-                axios
-                  .post(
-                    `${process.env.API_URL}/google-drive`,
-                    {
-                      operation: "INIT",
-                      data: {
-                        contentType,
-                        contentLength,
-                        name: fileToUpload.name,
-                        folderId,
-                      },
-                    },
-                    { headers: { Authorization } }
-                  )
-                  .then((r) => {
-                    const { location } = r.data;
-                    const upload = (start: number): Promise<{ id: string }> => {
-                      updateBlock({
-                        uid,
-                        text: `Loading ${Math.round(
-                          (100 * start) / contentLength
-                        )}%`,
-                      });
-                      const end = Math.min(start + CHUNK_MAX, contentLength);
-                      const reader = new FileReader();
-                      reader.readAsArrayBuffer(fileToUpload.slice(start, end));
-                      return new Promise((resolve, reject) => {
-                        reader.onloadend = () => {
-                          axios
-                            .post(
-                              `${process.env.API_URL}/google-drive`,
-                              {
-                                operation: "UPLOAD",
-                                data: {
-                                  chunk: Array.from(
-                                    new Uint8Array(reader.result as ArrayBuffer)
-                                  ),
-                                  uri: location,
-                                  contentLength: end - start,
-                                  contentRange: `bytes ${start}-${
-                                    end - 1
-                                  }/${contentLength}`,
-                                },
-                              },
-                              { headers: { Authorization } }
-                            )
-                            .then((r) =>
-                              r.data.done
-                                ? resolve({
-                                    id: r.data.id,
-                                  })
-                                : resolve(upload(r.data.start))
-                            )
-                            .catch(reject);
-                        };
-                      });
-                    };
-                    return upload(0);
-                  })
-                  .then(({ id }) => {
+                  },
+                  { headers: { Authorization } }
+                )
+                .then((r) => {
+                  const { location } = r.data;
+                  const upload = (start: number): Promise<{ id: string }> => {
                     updateBlock({
                       uid,
-                      text: `{{google drive:${id}}}`,
+                      text: `Loading ${Math.round(
+                        (100 * start) / contentLength
+                      )}%`,
                     });
-                  })
-              )
-          : Promise.reject(
-              "Failed to get Google Access token. Make sure you log in at [[roam/js/google]]!"
-            )
-      )
+                    const end = Math.min(start + CHUNK_MAX, contentLength);
+                    const reader = new FileReader();
+                    reader.readAsArrayBuffer(fileToUpload.slice(start, end));
+                    return new Promise((resolve, reject) => {
+                      reader.onloadend = () => {
+                        axios
+                          .post(
+                            `${process.env.API_URL}/google-drive`,
+                            {
+                              operation: "UPLOAD",
+                              data: {
+                                chunk: Array.from(
+                                  new Uint8Array(reader.result as ArrayBuffer)
+                                ),
+                                uri: location,
+                                contentLength: end - start,
+                                contentRange: `bytes ${start}-${
+                                  end - 1
+                                }/${contentLength}`,
+                              },
+                            },
+                            { headers: { Authorization } }
+                          )
+                          .then((r) =>
+                            r.data.done
+                              ? resolve({
+                                  id: r.data.id,
+                                })
+                              : resolve(upload(r.data.start))
+                          )
+                          .catch(reject);
+                      };
+                    });
+                  };
+                  return upload(0);
+                })
+                .then(({ id }) => {
+                  updateBlock({
+                    uid,
+                    text: `{{google drive:${id}}}`,
+                  });
+                })
+            );
+        else {
+          const err = new Error(
+            "Failed to get Google Access token. Make sure you log in at [[roam/js/google]]!"
+          );
+          err.name = "Authentication Error";
+          return Promise.reject(err);
+        }
+      })
       .catch((e) => {
         if (e.response?.data?.error?.code === 403) {
           updateBlock({
             uid,
             text: "Failed to upload file to google drive because of authentication. Make sure to log in through the [[roam/js/google]] page!",
+          });
+        } else if (e.name === "Authentication Error") {
+          updateBlock({
+            uid,
+            text: e.message,
           });
         } else {
           updateBlock({
@@ -180,7 +189,7 @@ const uploadToDrive = ({
             node: {
               text: e.response?.data
                 ? JSON.stringify(e.response.data)
-                : e.message,
+                : e.message || "Unknown Error",
             },
           });
         }
