@@ -49,12 +49,7 @@ module "roamjs_lambda" {
   }
 
   name = "google-drive"
-  lambdas = [
-    { 
-      path = "google-drive", 
-      method = "post"
-    }
-  ]
+  lambdas = []
   aws_access_token = var.aws_access_token
   aws_secret_token = var.aws_secret_token
   github_token     = var.github_token
