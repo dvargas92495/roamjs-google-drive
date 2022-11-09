@@ -96,17 +96,16 @@ const uploadToDrive = ({
             .then((folderId) =>
               axios
                 .post(
-                  `${process.env.API_URL}/google-drive`,
+                  `https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&access_token=${Authorization}`,
+                  { name: fileToUpload.name, parents: [folderId] },
                   {
-                    operation: "INIT",
-                    data: {
-                      contentType,
-                      contentLength,
-                      name: fileToUpload.name,
-                      folderId,
+                    headers: {
+                      "X-Upload-Content-Type": contentType,
+                      "X-Upload-Content-Length": `${contentLength}`,
+                      "Content-Type": "application/json",
+                      "Content-Length": "0",
                     },
-                  },
-                  { headers: { Authorization } }
+                  }
                 )
                 .then((r) => {
                   const { location } = r.data;
@@ -123,22 +122,17 @@ const uploadToDrive = ({
                     return new Promise((resolve, reject) => {
                       reader.onloadend = () => {
                         axios
-                          .post(
-                            `${process.env.API_URL}/google-drive`,
+                          .put(
+                            `${location}&access_token=${Authorization}`,
+                            new Uint8Array(reader.result as ArrayBuffer),
                             {
-                              operation: "UPLOAD",
-                              data: {
-                                chunk: Array.from(
-                                  new Uint8Array(reader.result as ArrayBuffer)
-                                ),
-                                uri: location,
-                                contentLength: end - start,
+                              headers: {
+                                contentLength: (end - start).toString(),
                                 contentRange: `bytes ${start}-${
                                   end - 1
                                 }/${contentLength}`,
                               },
-                            },
-                            { headers: { Authorization } }
+                            }
                           )
                           .then((r) =>
                             r.data.done
