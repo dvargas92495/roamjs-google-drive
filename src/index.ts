@@ -108,7 +108,7 @@ const uploadToDrive = ({
                   }
                 )
                 .then((r) => {
-                  const { location } = r.data;
+                  const location = r.headers.location || r.headers.Location;
                   const upload = (start: number): Promise<{ id: string }> => {
                     updateBlock({
                       uid,
@@ -123,7 +123,7 @@ const uploadToDrive = ({
                       reader.onloadend = () => {
                         axios
                           .put(
-                            `${location}&access_token=${Authorization}`,
+                            location,
                             new Uint8Array(reader.result as ArrayBuffer),
                             {
                               headers: {
