@@ -16,8 +16,16 @@ import { getAccessToken } from "./util";
 import {
   createConfigObserver,
   getSettingValueFromTree,
+  renderSimpleAlert,
   toFlexRegex,
 } from "roamjs-components";
+
+renderSimpleAlert({
+  content: `ATTENTION: This RoamJS extension (google-drive) could now be found in the RoamDepot! It has been migrated to the **google** extension from RoamDepot, which you could find by entering the Roam Depot Marketplace from the command palette.
+
+Please remove the \`{{[[roam/js]]}}\` code that installed this extension and refresh before installing from RoamDepot.`,
+  onConfirm: () => {},
+});
 
 addRoamJSDependency("google");
 const CONFIG = toConfig("google-drive");
